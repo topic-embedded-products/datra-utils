@@ -6,8 +6,6 @@ AC_LANG([C++])
 m4_ifdef([AM_PROG_AR], [AM_PROG_AR])
 AC_PROG_LIBTOOL
 AX_PTHREAD(HAVE_PTHREAD=yes, AC_MSG_ERROR([Need pthreads]))
-#AC_CHECK_HEADER([dyplo/hardware.hpp], ,[AC_MSG_ERROR(
-#	[Couldn't find dyplo/hardware.hpp, build and install libdyplo first.])])
 PKG_CHECK_MODULES([DYPLO], [dyplo])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile])
