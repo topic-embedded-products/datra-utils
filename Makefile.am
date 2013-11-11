@@ -4,3 +4,6 @@ AM_CPPFLAGS = $(DYPLO_CFLAGS)
 AM_LDFLAGS = $(DYPLO_LIBS)
 
 bin_PROGRAMS = dyploprogrammer dyploroute dyploaxiprobe
+
+dyploaxiprobe_LDADD = -lrt
+dyploaxiprobe_SOURCES = dyploaxiprobe.cpp benchmark.hpp

@@ -5,14 +5,18 @@
 #include <getopt.h>
 #include <stdio.h>
 #include <iostream>
+#include <string.h>
+#include "benchmark.hpp"
 
 static void usage(const char* name)
 {
 	std::cerr << "usage:\n"
 		<< name << " [options] [-r] addr [addr..]\n"
-		<< name << " [options] [-w] addr value [value..]\n"
+		<< name << " [options] -w addr value [value..]\n"
+		<< name << " [options] -b addr\n"
 		" -r    Read and display contents (default)\n"
 		" -w    Write to memory (dangerous)\n"
+		" -b    Benchmark mode (read addr continuously)\n"
 		"options:\n"
 		" -v    verbose mode.\n"
 		" -n #  Node (default is cfg, 0=cpu, >=1 hdl nodes)\n"
@@ -32,6 +36,7 @@ int main(int argc, char** argv)
 	int access = O_RDONLY; // or O_RDWR;
 	int count = 1;
 	bool long_format = false;
+	bool benchmark = false;
 	const char* short_format = " %8x";
 	static struct option long_options[] = {
 	   {"node",	required_argument, 0, 'n' },
@@ -46,12 +51,15 @@ int main(int argc, char** argv)
 		int option_index = 0;
 		for (;;)
 		{
-			int c = getopt_long(argc, argv, "c:dln:rvw",
+			int c = getopt_long(argc, argv, "bc:dln:rvw",
 							long_options, &option_index);
 			if (c < 0)
 				break;
 			switch (c)
 			{
+			case 'b':
+				benchmark = true;
+				break;
 			case 'c':
 				count = strtol(optarg, NULL, 0);
 				break;
@@ -90,33 +98,76 @@ int main(int argc, char** argv)
 				unsigned int page_offset = addr & (PAGE_SIZE-1);
 				size_t size = addr + (count * sizeof(unsigned int)) - page_location;
 				
-				if (verbose) printf("Addr: %#x (%d) offset=%#x+%#x - %#x (%d)\n", addr, addr, page_location, page_offset, size, size);
+				if (verbose) printf("Addr: %#x (%d) offset=%#x+%#x - %#zx (%zu)\n",
+					addr, addr, (unsigned int)page_location, page_offset, size, size);
 				
 				dyplo::MemoryMap mapping(file, page_location, size, PROT_READ);
 				volatile unsigned int* data = (unsigned int*)(((char*)mapping.memory) + page_offset);
 				
-				if (long_format)
+				if (benchmark)
 				{
-					for (int i = 0; i < count; ++i)
+					unsigned int loops = 0;
+					Stopwatch timer;
+					if (count > 1)
 					{
-						unsigned int value = data[i];
-						printf("@0x%04x: %#10x (%d) \n", addr+(i*sizeof(unsigned int)), value, value);
+						size_t blocksize = count * sizeof(unsigned int);
+						unsigned int dest[count];
+						timer.start();
+						do
+						{
+							for (unsigned int repeat = 64*1024u; repeat != 0; --repeat)
+							{
+								memcpy(dest, (void*)data, blocksize);
+							}
+							++loops;
+							timer.stop();
+						} while (timer.elapsed_us() < 1000000);
 					}
+					else
+					{
+						count = 1;
+						timer.start();
+						do
+						{
+							unsigned int dest;
+							for (unsigned int repeat = 64*1024u; repeat != 0; --repeat)
+							{
+								dest += *data; /* force memory access */
+							}
+							++loops;
+							timer.stop();
+						} while (timer.elapsed_us() < 1000000);
+					}
+					unsigned int elapsed_us = timer.elapsed_us();
+					unsigned int bytes = loops * count * (64u * 1024u * sizeof(unsigned int));
+					printf("loops=%u us=%u bytes=%u hence %u MB/s\n",
+						loops, elapsed_us, bytes, bytes / elapsed_us);
 				}
 				else
 				{
-					int j = 0;
-					int lines = (count+3)/4;
-					for (int line = 0; line < lines; ++line)
+					if (long_format)
 					{
-						printf("@0x%04x: ", addr + (j*sizeof(unsigned int)));
-						for (int i = j; i < count && i < j+4; ++i)
+						for (int i = 0; i < count; ++i)
 						{
 							unsigned int value = data[i];
-							printf(short_format, value);
+							printf("@0x%04x: %#10x (%d)\n",	(unsigned int)(addr+(i*sizeof(unsigned int))), value, (int)value);
 						}
-						printf("\n");
-						j += 4;
+					}
+					else
+					{
+						int j = 0;
+						int lines = (count+3)/4;
+						for (int line = 0; line < lines; ++line)
+						{
+							printf("@0x%04x: ", (unsigned int)(addr + (j*sizeof(unsigned int))));
+							for (int i = j; i < count && i < j+4; ++i)
+							{
+								unsigned int value = data[i];
+								printf(short_format, value);
+							}
+							printf("\n");
+							j += 4;
+						}
 					}
 				}
 			}
@@ -131,14 +182,46 @@ int main(int argc, char** argv)
 			off_t page_location = addr & ~(PAGE_SIZE-1);
 			unsigned int page_offset = addr & (PAGE_SIZE-1);
 			size_t size = addr + (values * sizeof(unsigned int)) - page_location;
-			if (verbose) printf("Addr: %#x (%d) offset=%#x+%#x - %#x (%d)\n", addr, addr, page_location, page_offset, size, size);
+				if (verbose) printf("Addr: %#x (%d) offset=%#x+%#x - %#zx (%zu)\n", addr, addr, (unsigned int)page_location, page_offset, size, size);
 			dyplo::MemoryMap mapping(file, page_location, size, PROT_READ|PROT_WRITE);
 			volatile unsigned int* data = (unsigned int*)(((char*)mapping.memory) + page_offset);
-			for (int index = 0; index < values; ++index)
+			if (benchmark)
 			{
-				unsigned int value = strtol(argv[optind+index], NULL, 0);
-				if (verbose) printf("@0x%04x: %#x (%d) \n", addr+(index*sizeof(unsigned int)), value, value);
-				data[index] = value;
+				unsigned int value[values];
+				const size_t blocksize = values * sizeof(unsigned int);
+				for (int index = 0; index < values; ++index)
+					value[index] = strtol(argv[optind+index], NULL, 0);
+				if (verbose)
+				{
+					printf("transfer size: %zd\n", blocksize);
+					for (int index = 0; index < values; ++index)
+						printf("%x (%d)\n", value[index], (int)value[index]);
+				}
+				unsigned int loops = 0;
+				Stopwatch timer;
+				timer.start();
+				do
+				{
+					for (unsigned int repeat = 64*1024u; repeat != 0; --repeat)
+					{
+						memcpy((void*)data, value, blocksize);
+					}
+					++loops;
+					timer.stop();
+				} while (timer.elapsed_us() < 1000000);
+				unsigned int elapsed_us = timer.elapsed_us();
+				unsigned int bytes = loops * blocksize * (64u * 1024u);
+				printf("loops=%u us=%u bytes=%u hence %u MB/s\n",
+					loops, elapsed_us, bytes, bytes / elapsed_us);
+			}
+			else
+			{
+				for (int index = 0; index < values; ++index)
+				{
+					unsigned int value = strtol(argv[optind+index], NULL, 0);
+					if (verbose) printf("@0x%04x: %#x (%d) \n", (unsigned int)(addr+(index*sizeof(unsigned int))), value, (int)value);
+					data[index] = value;
+				}
 			}
 		}
 	}
