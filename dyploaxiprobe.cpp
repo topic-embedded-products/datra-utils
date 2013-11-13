@@ -185,18 +185,18 @@ int main(int argc, char** argv)
 				if (verbose) printf("Addr: %#x (%d) offset=%#x+%#x - %#zx (%zu)\n", addr, addr, (unsigned int)page_location, page_offset, size, size);
 			dyplo::MemoryMap mapping(file, page_location, size, PROT_READ|PROT_WRITE);
 			volatile unsigned int* data = (unsigned int*)(((char*)mapping.memory) + page_offset);
+			unsigned int value[values];
+			const size_t blocksize = values * sizeof(unsigned int);
+			for (int index = 0; index < values; ++index)
+				value[index] = strtol(argv[optind+index], NULL, 0);
+			if (verbose)
+			{
+				printf("transfer size: %d words, %zd bytes\n", values, blocksize);
+				for (int index = 0; index < values; ++index)
+					printf("%x (%d)\n", value[index], (int)value[index]);
+			}
 			if (benchmark)
 			{
-				unsigned int value[values];
-				const size_t blocksize = values * sizeof(unsigned int);
-				for (int index = 0; index < values; ++index)
-					value[index] = strtol(argv[optind+index], NULL, 0);
-				if (verbose)
-				{
-					printf("transfer size: %zd\n", blocksize);
-					for (int index = 0; index < values; ++index)
-						printf("%x (%d)\n", value[index], (int)value[index]);
-				}
 				unsigned int loops = 0;
 				Stopwatch timer;
 				timer.start();
@@ -216,12 +216,7 @@ int main(int argc, char** argv)
 			}
 			else
 			{
-				for (int index = 0; index < values; ++index)
-				{
-					unsigned int value = strtol(argv[optind+index], NULL, 0);
-					if (verbose) printf("@0x%04x: %#x (%d) \n", (unsigned int)(addr+(index*sizeof(unsigned int))), value, (int)value);
-					data[index] = value;
-				}
+				memcpy((void*)data, value, blocksize);
 			}
 		}
 	}
