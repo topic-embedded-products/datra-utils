@@ -8,6 +8,7 @@ static void usage(const char* name)
 	std::cerr << "usage: " << name << " [-v] [-f|-p] files ..\n"
 		" -v    verbose mode.\n"
 		" -f    Force full mode (erases PL)\n"
+		" -o    Output to file\n"
 		" -p	Force partial mode (default)\n"
 		" files	Bitstreams to flash. May be in binary or bit format.\n";
 }
@@ -18,6 +19,7 @@ int main(int argc, char** argv)
 {
 	bool verbose = false;
 	bool forced_mode = false;
+	const char* output_file = NULL;
 	static struct option long_options[] = {
 	   {"verbose",	no_argument, 0, 'v' },
 	   {"full",		no_argument, 0, 'f' },
@@ -30,7 +32,7 @@ int main(int argc, char** argv)
 		int option_index = 0;
 		for (;;)
 		{
-			int c = getopt_long(argc, argv, "fpv",
+			int c = getopt_long(argc, argv, "fo:pv",
 							long_options, &option_index);
 			if (c < 0)
 				break;
@@ -42,6 +44,9 @@ int main(int argc, char** argv)
 			case 'p':
 				forced_mode = true;
 				ctrl.setProgramMode(true);
+				break;
+			case 'o':
+				output_file = optarg;
 				break;
 			case 'f':
 				forced_mode = true;
@@ -56,14 +61,28 @@ int main(int argc, char** argv)
 		{
 			if (verbose)
 				std::cerr << "Programming: " << argv[optind] << " " << std::flush;
-			if (!forced_mode)
+			if (output_file == NULL)
 			{
-				bool is_partial = dyplo::File::get_size(argv[optind]) < DYPLO_MAGIC_PL_SIZE;
-				ctrl.setProgramMode(is_partial);
+				if (!forced_mode)
+				{
+					bool is_partial = dyplo::File::get_size(argv[optind]) < DYPLO_MAGIC_PL_SIZE;
+					ctrl.setProgramMode(is_partial);
+				}
+				if (verbose)
+					std::cerr << (ctrl.getProgramMode() ? "(partial)" : "(full)") << "... " << std::flush;
 			}
-			if (verbose)
-				std::cerr << (ctrl.getProgramMode() ? "(partial)" : "(full)") << "... " << std::flush;
-			unsigned int r = ctrl.program(argv[optind]);
+			unsigned int r;
+			if (output_file == NULL)
+			{
+				r = ctrl.program(argv[optind]);
+			}
+			else
+			{
+				if (verbose)
+					std::cerr << " to: " << output_file << std::flush;
+				dyplo::File output(::open(output_file, O_WRONLY|O_TRUNC|O_CREAT, 0644));
+				r = ctrl.program(output, argv[optind]);
+			}
 			if (verbose)
 				std::cerr << r << " bytes." << std::endl;
 		}
