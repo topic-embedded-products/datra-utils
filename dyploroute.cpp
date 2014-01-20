@@ -37,6 +37,7 @@ static void usage(const char* name)
 	std::cerr << "usage: " << name << " [-v] [-c] sn,sf,dn,df ...\n"
 		" -v    verbose mode.\n"
 		" -c    clear all routes first\n"
+		" -l    list all routes\n"
 		" sn,sf,dn,df	Source node, fifo, destination node and fifo.\n";
 }
 
@@ -105,18 +106,20 @@ static dyplo::HardwareControl::Route parse_route(const char *txt)
 
 int main(int argc, char** argv)
 {
-	bool verbose = false;
 	static struct option long_options[] = {
 	   {"clear",	no_argument, 0, 'c' },
 	   {"verbose",	no_argument, 0, 'v' },
+	   {"list",		no_argument, 0, 'l' },
 	   {0,          0,           0, 0 }
 	};
+	bool verbose = false;
+	bool list_routes = false;
 	try
 	{
 		int option_index = 0;
 		for (;;)
 		{
-			int c = getopt_long(argc, argv, "cv",
+			int c = getopt_long(argc, argv, "clv",
 							long_options, &option_index);
 			if (c < 0)
 				break;
@@ -127,6 +130,9 @@ int main(int argc, char** argv)
 					dyplo::HardwareContext ctrl;
 					dyplo::HardwareControl(ctrl).routeDeleteAll();
 				}
+				break;
+			case 'l':
+				list_routes = true;
 				break;
 			case 'v':
 				verbose = true;
@@ -154,6 +160,24 @@ int main(int argc, char** argv)
 		{
 			dyplo::HardwareContext ctrl;
 			dyplo::HardwareControl(ctrl).routeAdd(&routes[0], routes.size());
+		}
+		if (list_routes)
+		{
+			routes.resize(256);
+			dyplo::HardwareContext ctrl;
+			int n_routes = dyplo::HardwareControl(ctrl).routeGetAll(&routes[0], routes.size());
+			if (n_routes < 0)
+				throw dyplo::IOException();
+			routes.resize(n_routes);
+			for (std::vector<dyplo::HardwareControl::Route>::const_iterator route = routes.begin();
+					route != routes.end(); ++route)
+			{
+				std::cout
+					<< (int)route->srcNode << '.' << (int)route->srcFifo
+					<< '-'
+					<< (int)route->dstNode << '.' << (int)route->dstFifo
+					<< '\n';
+			}
 		}
 	}
 	catch (const std::exception& ex)
