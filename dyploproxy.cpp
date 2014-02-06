@@ -218,6 +218,7 @@ int main(int argc, char** argv)
 		fds[1].fd = to_hardware;
 		fds[2].fd = from_hardware;
 		fds[4].fd = 1;
+		bool input_eof = false;
 		for (;;)
 		{
 			if (in_avail)
@@ -227,7 +228,7 @@ int main(int argc, char** argv)
 			}
 			else
 			{
-				fds[0].events = POLLIN | POLLRDHUP | POLLERR | POLLHUP | POLLNVAL;
+				fds[0].events = input_eof ? 0 : POLLIN | POLLRDHUP | POLLERR | POLLHUP | POLLNVAL;
 				fds[1].events = 0;
 			}
 			if (out_avail)
@@ -240,17 +241,41 @@ int main(int argc, char** argv)
 				fds[2].events = POLLIN | POLLRDHUP | POLLERR | POLLHUP | POLLNVAL;
 				fds[3].events = 0;
 			}
-			int result = poll(fds, 4, -1);
+			int result;
+			if (input_eof)
+				result = ::poll(fds + 1, 3, 500);
+			else
+				result = ::poll(fds, 4, -1);
 			if (result == -1)
-				throw IOException();
+				throw IOException("poll");
+			if (result == 0)
+			{
+				if (input_eof)
+				{
+					if (verbose)
+						std::cerr << "Timeout after EOF in stdin" << std::endl;
+					break;
+				}
+			}
 			if (in_avail)
 			{
 				if (fds[1].revents)
 				{
-					ssize_t bytes = to_hardware.write(in_pos, in_avail);
-					in_avail -= bytes;
-					in_pos += bytes;
+					ssize_t bytes = ::write(to_hardware, in_pos, in_avail);
+					if (bytes <= 0)
+					{
+						if (bytes == 0)
+							throw dyplo::EndOfOutputException();
+						else if (errno != EAGAIN)
+							throw IOException("to hardware");
+					}
+					else
+					{
+						in_avail -= bytes;
+						in_pos += bytes;
+					}
 				}
+				fds[1].revents = 0;
 			}
 			else
 			{
@@ -258,9 +283,20 @@ int main(int argc, char** argv)
 				{
 					in_pos = &buffer_in[0];
 					ssize_t bytes = ::read(0, in_pos, blocksize);
-					if (bytes < 0)
-						throw IOException();
-					in_avail = bytes;
+					if (bytes <= 0)
+					{
+						if (bytes == 0)
+						{
+							if (verbose)
+								std::cerr << "EOF on stdin" << std::endl;
+							input_eof = true;
+						}
+						else if (errno != EAGAIN)
+							throw IOException("to hardware");
+					}
+					else
+						in_avail = bytes;
+					fds[0].revents = 0;
 				}
 			}
 			if (out_avail)
@@ -268,10 +304,19 @@ int main(int argc, char** argv)
 				if (fds[3].revents)
 				{
 					ssize_t bytes = ::write(1, out_pos, out_avail);
-					if (bytes < 0)
-						throw IOException();
-					out_avail -= bytes;
-					out_pos += bytes;
+					if (bytes <= 0)
+					{
+						if (bytes == 0)
+							throw dyplo::EndOfOutputException();
+						else if (errno != EAGAIN)
+							throw IOException("to stdout");
+					}
+					else
+					{
+						out_avail -= bytes;
+						out_pos += bytes;
+					}
+					fds[3].revents = 0;
 				}
 			}
 			else
@@ -279,7 +324,15 @@ int main(int argc, char** argv)
 				if (fds[2].revents)
 				{
 					out_pos = &buffer_out[0];
-					out_avail = from_hardware.read(out_pos, blocksize);
+					ssize_t bytes = ::read(from_hardware, out_pos, blocksize);
+					if (bytes < 0)
+					{
+						if (errno != EAGAIN)
+							throw IOException("from hardware");
+					}
+					else
+						out_avail = bytes;
+					fds[2].revents = 0;
 				}
 			}
 		}
