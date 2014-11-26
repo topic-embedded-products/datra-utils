@@ -215,7 +215,7 @@ int main(int argc, char** argv)
 			unsigned int value[values];
 			const size_t blocksize = values * sizeof(unsigned int);
 			for (int index = 0; index < values; ++index)
-				value[index] = strtol(argv[optind+index], NULL, 0);
+				value[index] = strtoul(argv[optind+index], NULL, 0);
 			if (verbose)
 			{
 				printf("transfer size: %d words, %zd bytes\n", values, blocksize);
