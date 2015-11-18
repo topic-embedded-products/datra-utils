@@ -217,7 +217,7 @@ int main(int argc, char** argv)
 		fds[0].fd = 0;
 		fds[1].fd = to_hardware;
 		fds[2].fd = from_hardware;
-		fds[4].fd = 1;
+		fds[3].fd = 1;
 		bool input_eof = false;
 		for (;;)
 		{
