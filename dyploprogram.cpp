@@ -48,7 +48,6 @@ static void usage(const char* name)
 int main(int argc, char** argv)
 {
 	bool verbose = false;
-	const char* output_file = NULL;
 	static struct option long_options[] = {
 	   {"verbose",	no_argument, 0, 'v' },
 	   {0,          0,           0, 0 }
@@ -78,13 +77,13 @@ int main(int argc, char** argv)
 		}
 		ctrl.setProgramMode(true); /* Always in partial mode */
 		const char* function_name = NULL;
-		
+
 		for (; optind < argc; ++optind)
 		{
 			const char* arg = argv[optind];
 			char *endptr;
 			unsigned int node_index;
-			
+
 			node_index = strtoul(arg, &endptr, 0);
 			if (!(*endptr)) /* Valid number */
 			{
@@ -101,10 +100,13 @@ int main(int argc, char** argv)
 				}
 				if (verbose)
 					std::cerr << "Programming '" << function_name << "' into " << node_index << " using " << filename << std::flush;
+				dyplo::File input_file(filename.c_str(), O_RDONLY);
 				dyplo::HardwareConfig cfg(ctrl, node_index);
+
 				cfg.disableNode();
-				unsigned int r = ctrl.program(filename.c_str());
+				unsigned int r = ctrl.program(input_file);
 				cfg.enableNode();
+
 				if (verbose)
 					std::cerr << ' ' << r << " bytes." << std::endl;
 			}
