@@ -29,13 +29,14 @@
 #include <unistd.h>
 #include <iostream>
 #include <getopt.h>
+#include <string.h>
 
 static void usage(const char* name)
 {
-	std::cerr << "usage: " << name << " [-v] [-f|-p] files ..\n"
+	std::cerr << "usage: " << name << " [-v] [-f|-p] [-o fn] files ..\n"
 		" -v    verbose mode.\n"
 		" -f    Force full mode (erases PL)\n"
-		" -o    Output to file\n"
+		" -o    Output to file (use '-' for stdout)\n"
 		" -p	Force partial mode (default)\n"
 		" files	Bitstreams to flash. May be in binary or bit format.\n";
 }
@@ -107,7 +108,10 @@ int main(int argc, char** argv)
 			{
 				if (verbose)
 					std::cerr << " to: " << output_file << std::flush;
-				dyplo::File output(::open(output_file, O_WRONLY|O_TRUNC|O_CREAT, 0644));
+				dyplo::File output(
+					strcmp(output_file, "-") ?
+						::open(output_file, O_WRONLY|O_TRUNC|O_CREAT, 0644) :
+						dup(1));
 				r = ctrl.program(output, argv[optind]);
 			}
 			if (verbose)
