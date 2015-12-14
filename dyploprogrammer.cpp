@@ -89,6 +89,9 @@ int main(int argc, char** argv)
 		{
 			if (verbose)
 				std::cerr << "Programming: " << argv[optind] << " " << std::flush;
+			dyplo::File input(strcmp(argv[optind], "-") ?
+						::open(argv[optind], O_RDONLY) :
+						dup(0));
 			if (output_file == NULL)
 			{
 				if (!forced_mode)
@@ -102,7 +105,7 @@ int main(int argc, char** argv)
 			unsigned int r;
 			if (output_file == NULL)
 			{
-				r = ctrl.program(argv[optind]);
+				r = ctrl.program(input);
 			}
 			else
 			{
@@ -112,7 +115,7 @@ int main(int argc, char** argv)
 					strcmp(output_file, "-") ?
 						::open(output_file, O_WRONLY|O_TRUNC|O_CREAT, 0644) :
 						dup(1));
-				r = ctrl.program(output, argv[optind]);
+				r = ctrl.program(output, input);
 			}
 			if (verbose)
 				std::cerr << r << " bytes." << std::endl;
