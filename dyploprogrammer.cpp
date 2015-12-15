@@ -30,23 +30,89 @@
 #include <iostream>
 #include <getopt.h>
 #include <string.h>
+#include <memory>
 
 static void usage(const char* name)
 {
 	std::cerr << "usage: " << name << " [-v] [-f|-p] [-o fn] files ..\n"
 		" -v    verbose mode.\n"
-		" -f    Force full mode (erases PL)\n"
+		" -f    Default to full mode (erases PL)\n"
 		" -o    Output to file (use '-' for stdout)\n"
-		" -p	Force partial mode (default)\n"
-		" files	Bitstreams to flash. May be in binary or bit format.\n";
+		" -p	Default to partial mode\n"
+		" files	Bitstreams to flash. May be in binary or bit format.\n"
+		"       (Use '-' for stdin, only in combination with either -f, -p or -o.)\n"
+		"\n"
+		"Detection of partial bitstreams is automatic for the 'bit' format, but when\n"
+		"programming raw 'bin' streams, provide either -p or -f to properly set the\n"
+		"mode in the driver.\n";
 }
 
-#define DYPLO_MAGIC_PL_SIZE	4045564
+class DyploUserIDMismatchException: public std::exception
+{
+public:
+	const char* what() const throw()
+	{
+		return "Partial bitstream and Dyplo ID mismatch";
+	}
+};
+
+class HardwareProgrammer: public dyplo::ProgramTagCallback
+{
+protected:
+	dyplo::HardwareContext &ctrl;
+	unsigned int dyplo_user_id;
+	bool current_partial_mode;
+	bool dyplo_user_id_valid;
+public:
+
+	HardwareProgrammer(dyplo::HardwareContext &context):
+		ctrl(context),
+		current_partial_mode(ctrl.getProgramMode()),
+		dyplo_user_id_valid(false)
+	{
+	}
+	
+	void setPartialMode(bool value)
+	{
+		if (value != current_partial_mode)
+		{
+			ctrl.setProgramMode(value);
+			current_partial_mode = value;
+		}
+	}
+	
+	unsigned int getDyploUserID()
+	{
+		if (!dyplo_user_id_valid)
+		{
+			dyplo::HardwareControl c(ctrl);
+			dyplo_user_id = c.readDyploStaticID();
+			dyplo_user_id_valid = true;
+		}
+		return dyplo_user_id;
+	}
+
+	virtual void processTag(char tag, unsigned short size, const void *data)
+	{
+		if (tag == 'a')
+		{
+			unsigned int user_id;
+			bool is_partial = current_partial_mode;
+			bool has_user_id = 
+				dyplo::HardwareContext::parseDescriptionTag((const char*)data, size, &is_partial, &user_id);
+			setPartialMode(is_partial);
+			if (has_user_id && is_partial)
+			{
+				if (getDyploUserID() != user_id)
+					throw DyploUserIDMismatchException();
+			}
+		}
+	}
+};
 
 int main(int argc, char** argv)
 {
 	bool verbose = false;
-	bool forced_mode = false;
 	const char* output_file = NULL;
 	static struct option long_options[] = {
 	   {"verbose",	no_argument, 0, 'v' },
@@ -70,14 +136,12 @@ int main(int argc, char** argv)
 				verbose = true;
 				break;
 			case 'p':
-				forced_mode = true;
 				ctrl.setProgramMode(true);
 				break;
 			case 'o':
 				output_file = optarg;
 				break;
 			case 'f':
-				forced_mode = true;
 				ctrl.setProgramMode(false);
 				break;
 			case '?':
@@ -85,6 +149,7 @@ int main(int argc, char** argv)
 				return 1;
 			}
 		}
+		std::auto_ptr<HardwareProgrammer> programmer;
 		for (; optind < argc; ++optind)
 		{
 			if (verbose)
@@ -92,33 +157,37 @@ int main(int argc, char** argv)
 			dyplo::File input(strcmp(argv[optind], "-") ?
 						::open(argv[optind], O_RDONLY) :
 						dup(0));
+			int output_file_handle;
 			if (output_file == NULL)
 			{
-				if (!forced_mode)
-				{
-					bool is_partial = dyplo::File::get_size(argv[optind]) < DYPLO_MAGIC_PL_SIZE;
-					ctrl.setProgramMode(is_partial);
-				}
-				if (verbose)
-					std::cerr << (ctrl.getProgramMode() ? "(partial)" : "(full)") << "... " << std::flush;
-			}
-			unsigned int r;
-			if (output_file == NULL)
-			{
-				r = ctrl.program(input);
+				if (!programmer.get())
+					programmer.reset(new HardwareProgrammer(ctrl));
+				const char* output_name = ctrl.getDefaultProgramDestination();
+				output_file_handle = ::open(output_name, O_WRONLY);
+				if (output_file_handle < 0)
+					throw dyplo::IOException(output_name);
 			}
 			else
 			{
 				if (verbose)
 					std::cerr << " to: " << output_file << std::flush;
-				dyplo::File output(
-					strcmp(output_file, "-") ?
-						::open(output_file, O_WRONLY|O_TRUNC|O_CREAT, 0644) :
-						dup(1));
-				r = ctrl.program(output, input);
+				if (strcmp(output_file, "-")) 
+				{
+					output_file_handle = ::open(output_file, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+					if (output_file_handle < 0)
+						throw dyplo::IOException(output_file);
+				}
+				else
+					output_file_handle = dup(1);
 			}
+			dyplo::File output(output_file_handle);
+			unsigned int r = ctrl.program(output, input);
 			if (verbose)
+			{
+				if (!output_file)
+					std::cerr << (ctrl.getProgramMode() ? "(partial) " : "(full) ");
 				std::cerr << r << " bytes." << std::endl;
+			}
 		}
 	}
 	catch (const std::exception& ex)
