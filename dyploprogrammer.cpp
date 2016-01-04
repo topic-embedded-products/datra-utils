@@ -71,7 +71,7 @@ public:
 		dyplo_user_id_valid(false)
 	{
 	}
-	
+
 	void setPartialMode(bool value)
 	{
 		if (value != current_partial_mode)
@@ -80,7 +80,7 @@ public:
 			current_partial_mode = value;
 		}
 	}
-	
+
 	unsigned int getDyploUserID()
 	{
 		if (!dyplo_user_id_valid)
@@ -98,7 +98,7 @@ public:
 		{
 			unsigned int user_id;
 			bool is_partial = current_partial_mode;
-			bool has_user_id = 
+			bool has_user_id =
 				dyplo::HardwareContext::parseDescriptionTag((const char*)data, size, &is_partial, &user_id);
 			setPartialMode(is_partial);
 			if (has_user_id && is_partial)
@@ -171,7 +171,7 @@ int main(int argc, char** argv)
 			{
 				if (verbose)
 					std::cerr << " to: " << output_file << std::flush;
-				if (strcmp(output_file, "-")) 
+				if (strcmp(output_file, "-"))
 				{
 					output_file_handle = ::open(output_file, O_WRONLY|O_TRUNC|O_CREAT, 0644);
 					if (output_file_handle < 0)
