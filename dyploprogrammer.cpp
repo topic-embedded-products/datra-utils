@@ -181,7 +181,7 @@ int main(int argc, char** argv)
 					output_file_handle = dup(1);
 			}
 			dyplo::File output(output_file_handle);
-			unsigned int r = ctrl.program(output, input);
+			unsigned int r = ctrl.program(output, input, programmer.get());
 			if (verbose)
 			{
 				if (!output_file)
