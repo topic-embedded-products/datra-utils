@@ -175,9 +175,8 @@ int main(int argc, char** argv)
 					{
 						control.disableNode(id);
 						std::string filename =
-								context.findPartition(argv[optind], id);
-						context.setProgramMode(true); /* partial */
-						context.program(filename.c_str());
+                                                                context.findPartition(argv[optind], id);
+                                                control.program(filename.c_str());
 						control.enableNode(id);
 						route.dstNode = id;
 						route.dstFifo = 0;

@@ -26,173 +26,99 @@
  * paper mail at the following address: Postbus 440, 5680 AK Best, The Netherlands.
  */
 #include "dyplo/hardware.hpp"
+#include <stdlib.h>
 #include <unistd.h>
 #include <iostream>
 #include <getopt.h>
-#include <string.h>
-#include <memory>
 
 static void usage(const char* name)
 {
-	std::cerr << "usage: " << name << " [-v] [-f|-p] [-o fn] files ..\n"
+	std::cerr << "usage: " << name << " [-v] [-b bitstream_path] function N [N] ..\n"
 		" -v    verbose mode.\n"
-		" -f    Default to full mode (erases PL)\n"
-		" -o    Output to file (use '-' for stdout)\n"
-		" -p	Default to partial mode\n"
-		" files	Bitstreams to flash. May be in binary or bit format.\n"
-		"       (Use '-' for stdin, only in combination with either -f, -p or -o.)\n"
+		" -b    Bitstream base path (default /usr/share/bitstreams)\n"
+		" function	Function to be programmed\n"
+		" N 	Node index(es) to program the function to\n"
 		"\n"
-		"Detection of partial bitstreams is automatic for the 'bit' format, but when\n"
-		"programming raw 'bin' streams, provide either -p or -f to properly set the\n"
-		"mode in the driver.\n";
+		"Programs functions into Dyplo's reconfigurable partitions.\n"
+		"For example, to put an adder into nodes 1 and 2, and a fir into 3:\n"
+		"  " << name << " adder 1 2 fir 3\n"
+		"This requires bitstreams for these functions to be present.\n";
 }
-
-class DyploUserIDMismatchException: public std::exception
-{
-public:
-	const char* what() const throw()
-	{
-		return "Partial bitstream and Dyplo ID mismatch";
-	}
-};
-
-class HardwareProgrammer: public dyplo::ProgramTagCallback
-{
-protected:
-	dyplo::HardwareContext &ctrl;
-	unsigned int dyplo_user_id;
-	bool current_partial_mode;
-	bool dyplo_user_id_valid;
-public:
-
-	HardwareProgrammer(dyplo::HardwareContext &context):
-		ctrl(context),
-		current_partial_mode(ctrl.getProgramMode()),
-		dyplo_user_id_valid(false)
-	{
-	}
-
-	void setPartialMode(bool value)
-	{
-		if (value != current_partial_mode)
-		{
-			ctrl.setProgramMode(value);
-			current_partial_mode = value;
-		}
-	}
-
-	unsigned int getDyploUserID()
-	{
-		if (!dyplo_user_id_valid)
-		{
-			dyplo::HardwareControl c(ctrl);
-			dyplo_user_id = c.readDyploStaticID();
-			dyplo_user_id_valid = true;
-		}
-		return dyplo_user_id;
-	}
-
-	virtual void processTag(char tag, unsigned short size, const void *data)
-	{
-		if (tag == 'a')
-		{
-			unsigned int user_id;
-			bool is_partial = current_partial_mode;
-			bool has_user_id =
-				dyplo::HardwareContext::parseDescriptionTag((const char*)data, size, &is_partial, &user_id);
-			setPartialMode(is_partial);
-			if (has_user_id && is_partial)
-			{
-				if (getDyploUserID() != user_id)
-					throw DyploUserIDMismatchException();
-			}
-		}
-	}
-};
 
 int main(int argc, char** argv)
 {
 	bool verbose = false;
-	const char* output_file = NULL;
 	static struct option long_options[] = {
 	   {"verbose",	no_argument, 0, 'v' },
-	   {"full",		no_argument, 0, 'f' },
-	   {"partial",	no_argument, 0, 'p' },
 	   {0,          0,           0, 0 }
 	};
 	try
 	{
-		dyplo::HardwareContext ctrl;
+                dyplo::HardwareContext ctx;
+                dyplo::HardwareControl control(ctx);
 		int option_index = 0;
 		for (;;)
 		{
-			int c = getopt_long(argc, argv, "fo:pv",
+			int c = getopt_long(argc, argv, "b:v",
 							long_options, &option_index);
 			if (c < 0)
 				break;
 			switch (c)
 			{
+			case 'b':
+                                ctx.setBitstreamBasepath(optarg);
+				break;
 			case 'v':
 				verbose = true;
-				break;
-			case 'p':
-				ctrl.setProgramMode(true);
-				break;
-			case 'o':
-				output_file = optarg;
-				break;
-			case 'f':
-				ctrl.setProgramMode(false);
 				break;
 			case '?':
 				usage(argv[0]);
 				return 1;
 			}
-		}
-		std::auto_ptr<HardwareProgrammer> programmer;
+                }
+		const char* function_name = NULL;
+
 		for (; optind < argc; ++optind)
 		{
-			if (verbose)
-				std::cerr << "Programming: " << argv[optind] << " " << std::flush;
-			dyplo::File input(strcmp(argv[optind], "-") ?
-						::open(argv[optind], O_RDONLY) :
-						dup(0));
-			int output_file_handle;
-			if (output_file == NULL)
+			const char* arg = argv[optind];
+			char *endptr;
+			unsigned int node_index;
+
+			node_index = strtoul(arg, &endptr, 0);
+			if (!(*endptr)) /* Valid number */
 			{
-				if (!programmer.get())
-					programmer.reset(new HardwareProgrammer(ctrl));
-				const char* output_name = ctrl.getDefaultProgramDestination();
-				output_file_handle = ::open(output_name, O_WRONLY);
-				if (output_file_handle < 0)
-					throw dyplo::IOException(output_name);
+				if (!function_name)
+				{
+					std::cerr << "Must set a function name before the number " << node_index << std::endl;
+					return 1;
+				}
+                                std::string filename = ctx.findPartition(function_name, node_index);
+				if (filename.empty())
+				{
+					std::cerr << "Function " << function_name << " not available for node " << node_index << std::endl;
+					return 1;
+				}
+				if (verbose)
+					std::cerr << "Programming '" << function_name << "' into " << node_index << " using " << filename << std::flush;
+				dyplo::File input_file(filename.c_str(), O_RDONLY);
+                                dyplo::HardwareConfig cfg(ctx, node_index);
+
+				cfg.disableNode();
+                                unsigned int r = control.program(input_file);
+				cfg.enableNode();
+
+				if (verbose)
+					std::cerr << ' ' << r << " bytes." << std::endl;
 			}
 			else
 			{
-				if (verbose)
-					std::cerr << " to: " << output_file << std::flush;
-				if (strcmp(output_file, "-"))
-				{
-					output_file_handle = ::open(output_file, O_WRONLY|O_TRUNC|O_CREAT, 0644);
-					if (output_file_handle < 0)
-						throw dyplo::IOException(output_file);
-				}
-				else
-					output_file_handle = dup(1);
-			}
-			dyplo::File output(output_file_handle);
-			unsigned int r = ctrl.program(output, input, programmer.get());
-			if (verbose)
-			{
-				if (!output_file)
-					std::cerr << (ctrl.getProgramMode() ? "(partial) " : "(full) ");
-				std::cerr << r << " bytes." << std::endl;
+				function_name = arg;
 			}
 		}
 	}
 	catch (const std::exception& ex)
 	{
-		std::cerr << "ERROR:\n" << ex.what() << std::endl;
+		std::cerr << "\nERROR: " << ex.what() << std::endl;
 		return 1;
 	}
 	return 0;
