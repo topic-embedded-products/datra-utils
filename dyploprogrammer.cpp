@@ -85,9 +85,9 @@ int main(int argc, char** argv)
 			unsigned int node_index;
 
 			node_index = strtoul(arg, &endptr, 0);
-			if (!(*endptr)) /* Valid number */
+                        if ((*endptr) == NULL) /* Valid number */
 			{
-				if (!function_name)
+                                if (function_name == NULL)
 				{
 					std::cerr << "Must set a function name before the number " << node_index << std::endl;
 					return 1;
