@@ -3,7 +3,7 @@
  *
  * Dyplo commandline utilities.
  *
- * (C) Copyright 2013,2014 Topic Embedded Products B.V. <Mike Looijmans> (http://www.topic.nl).
+ * (C) Copyright 2013-2016 Topic Embedded Products B.V. (http://www.topic.nl).
  * All rights reserved.
  *
  * This file is part of dyplo-utils.
@@ -33,93 +33,106 @@
 
 static void usage(const char* name)
 {
-	std::cerr << "usage: " << name << " [-v] [-b bitstream_path] function N [N] ..\n"
-		" -v    verbose mode.\n"
-		" -b    Bitstream base path (default /usr/share/bitstreams)\n"
-		" function	Function to be programmed\n"
-		" N 	Node index(es) to program the function to\n"
-		"\n"
-		"Programs functions into Dyplo's reconfigurable partitions.\n"
-		"For example, to put an adder into nodes 1 and 2, and a fir into 3:\n"
-		"  " << name << " adder 1 2 fir 3\n"
-		"This requires bitstreams for these functions to be present.\n";
+    std::cerr << "usage: " << name << " [-v] [-b bitstream_path] function N [N] ..\n"
+        " -v        verbose mode.\n"
+        " -b        Bitstream base path (default /usr/share/bitstreams)\n"
+        " function  Function to be programmed\n"
+        " N         Node index(es) to program the function to\n"
+        "\n"
+        "Programs functions into Dyplo's reconfigurable partitions.\n"
+        "For example, to put an adder into nodes 1 and 2, and a fir into 3:\n"
+        "  " << name << " adder 1 2 fir 3\n"
+        "This requires bitstreams for these functions to be present.\n";
 }
 
 int main(int argc, char** argv)
 {
-	bool verbose = false;
-	static struct option long_options[] = {
-	   {"verbose",	no_argument, 0, 'v' },
-	   {0,          0,           0, 0 }
-	};
-	try
-	{
-                dyplo::HardwareContext ctx;
-                dyplo::HardwareControl control(ctx);
-		int option_index = 0;
-		for (;;)
-		{
-			int c = getopt_long(argc, argv, "b:v",
-							long_options, &option_index);
-			if (c < 0)
-				break;
-			switch (c)
-			{
-			case 'b':
-                                ctx.setBitstreamBasepath(optarg);
-				break;
-			case 'v':
-				verbose = true;
-				break;
-			case '?':
-				usage(argv[0]);
-				return 1;
-			}
+    bool verbose = false;
+    static struct option long_options[] = {
+       {"verbose", no_argument, 0, 'v' },
+       {0,         0,           0, 0 }
+    };
+    
+    try
+    {
+        dyplo::HardwareContext ctx;
+        dyplo::HardwareControl control(ctx);
+        
+        int option_index = 0;
+        for (;;)
+        {
+            int c = getopt_long(argc, argv, "b:v",
+                                long_options, &option_index);
+            if (c < 0) 
+            {
+                break;
+            }
+            
+            switch (c)
+            {
+            case 'b':
+                ctx.setBitstreamBasepath(optarg);
+                break;
+            case 'v':
+                verbose = true;
+                break;
+            case '?':
+                usage(argv[0]);
+                return 1;
+            }
+        }
+        
+        const char* function_name = NULL;
+
+        for (; optind < argc; ++optind)
+        {
+            const char* arg = argv[optind];
+            char *endptr;
+            unsigned int node_index;
+
+            node_index = strtoul(arg, &endptr, 0);
+            if ((*endptr) == NULL) /* Valid number */
+            {
+                if (function_name == NULL)
+                {
+                    std::cerr << "Must set a function name before the number " << node_index << std::endl;
+                    return 1;
                 }
-		const char* function_name = NULL;
+                
+                std::string filename = ctx.findPartition(function_name, node_index);
+                if (filename.empty())
+                {
+                    std::cerr << "Function " << function_name << " not available for node " << node_index << std::endl;
+                    return 1;
+                }
+                
+                if (verbose)
+                {
+                    std::cerr << "Programming '" << function_name << "' into " << node_index << " using " << filename << std::flush;
+                }
+                
+                dyplo::File input_file(filename.c_str(), O_RDONLY);
+                dyplo::HardwareConfig cfg(ctx, node_index);
 
-		for (; optind < argc; ++optind)
-		{
-			const char* arg = argv[optind];
-			char *endptr;
-			unsigned int node_index;
+                cfg.disableNode();
+                unsigned int r = control.program(input_file);
+                cfg.enableNode();
 
-			node_index = strtoul(arg, &endptr, 0);
-                        if ((*endptr) == NULL) /* Valid number */
-			{
-                                if (function_name == NULL)
-				{
-					std::cerr << "Must set a function name before the number " << node_index << std::endl;
-					return 1;
-				}
-                                std::string filename = ctx.findPartition(function_name, node_index);
-				if (filename.empty())
-				{
-					std::cerr << "Function " << function_name << " not available for node " << node_index << std::endl;
-					return 1;
-				}
-				if (verbose)
-					std::cerr << "Programming '" << function_name << "' into " << node_index << " using " << filename << std::flush;
-				dyplo::File input_file(filename.c_str(), O_RDONLY);
-                                dyplo::HardwareConfig cfg(ctx, node_index);
-
-				cfg.disableNode();
-                                unsigned int r = control.program(input_file);
-				cfg.enableNode();
-
-				if (verbose)
-					std::cerr << ' ' << r << " bytes." << std::endl;
-			}
-			else
-			{
-				function_name = arg;
-			}
-		}
-	}
-	catch (const std::exception& ex)
-	{
-		std::cerr << "\nERROR: " << ex.what() << std::endl;
-		return 1;
-	}
-	return 0;
+                if (verbose)
+                {
+                    std::cerr << " " << r << " bytes." << std::endl;
+                }
+            }
+            else
+            {
+                function_name = arg;
+            }
+        }
+    }
+    catch (const std::exception& ex)
+    {
+        std::cerr << "\nERROR: " << ex.what() << std::endl;
+        return 1;
+    }
+    return 0;
 }
