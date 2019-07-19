@@ -34,14 +34,17 @@
 static void usage(const char* name)
 {
 	std::cerr << "usage: " << name << " [-a|-b] [-o offset] [-v] [-w key] file\n"
+		     "       " << name << " -r\n"
 		" -a    ASCII mode\n"
 		" -b    binary mode (default)\n"
 		" -o    offset in binary file\n"
+		" -r    read key from driver and write to stdout in hex\n"
 		" -v    verbose mode\n"
-		" -w	write key to file instead of reading it\n"
+		" -w    write key to file instead of reading it\n"
 		" file  file (or device) to read key from or to write it to\n"
 		"Activates a Dyplo license by writing it to the hardware. Must be called\n"
-		"early at boot. File can be a regular file or e.g. an EEPROM device.\n";
+		"early at boot. File can be a regular file or e.g. an EEPROM device.\n"
+		"When -r is specified, it reads back the key from hardware instead.\n";
 }
 
 int main(int argc, char** argv)
@@ -49,6 +52,7 @@ int main(int argc, char** argv)
 	bool ascii_mode = false;
 	bool verbose = false;
 	bool write_mode = false;
+	bool read_mode = false;
 	unsigned long long key;
 	off_t offset = 0;
 
@@ -58,6 +62,7 @@ int main(int argc, char** argv)
 		   {"ascii",	no_argument, 0, 'a' },
 		   {"binary",	no_argument, 0, 'b' },
 		   {"offset", required_argument, 0, 'o' },
+		   {"read",	no_argument, 0, 'r' },
 		   {"verbose",	no_argument, 0, 'v' },
 		   {"write", required_argument, 0, 'w' },
 		   {0,          0,           0, 0 }
@@ -65,7 +70,7 @@ int main(int argc, char** argv)
 		int option_index = 0;
 		for (;;)
 		{
-			int c = getopt_long(argc, argv, "abo:vw:",
+			int c = getopt_long(argc, argv, "abo:rvw:",
 							long_options, &option_index);
 			if (c < 0)
 				break;
@@ -79,6 +84,9 @@ int main(int argc, char** argv)
 				break;
 			case 'o':
 				offset = strtoll(optarg, NULL, 0);
+				break;
+			case 'r':
+				read_mode = true;
 				break;
 			case 'v':
 				verbose = true;
@@ -111,6 +119,13 @@ int main(int argc, char** argv)
 				dyplo::HardwareControl control(context);
 				control.writeDyploLicense(key);
 			}
+		}
+		else if (read_mode)
+		{
+			dyplo::HardwareContext context;
+			dyplo::HardwareControl control(context);
+			key = control.readDyploLicense();
+			std::cout << std::hex << "0x" << key << std::endl;
 		}
 		else
 		{
