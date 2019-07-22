@@ -34,11 +34,12 @@
 static void usage(const char* name)
 {
 	std::cerr << "usage: " << name << " [-a|-b] [-o offset] [-v] [-w key] file\n"
-		     "       " << name << " -r\n"
+		     "       " << name << " {-r|-i}\n"
 		" -a    ASCII mode\n"
 		" -b    binary mode (default)\n"
 		" -o    offset in binary file\n"
 		" -r    read key from driver and write to stdout in hex\n"
+		" -i    read device ID from driver and write to stdout in hex\n"
 		" -v    verbose mode\n"
 		" -w    write key to file instead of reading it\n"
 		" file  file (or device) to read key from or to write it to\n"
@@ -52,7 +53,8 @@ int main(int argc, char** argv)
 	bool ascii_mode = false;
 	bool verbose = false;
 	bool write_mode = false;
-	bool read_mode = false;
+	bool read_license = false;
+	bool read_deviceid = false;
 	unsigned long long key;
 	off_t offset = 0;
 
@@ -63,6 +65,7 @@ int main(int argc, char** argv)
 		   {"binary",	no_argument, 0, 'b' },
 		   {"offset", required_argument, 0, 'o' },
 		   {"read",	no_argument, 0, 'r' },
+		   {"id",	no_argument, 0, 'i' },
 		   {"verbose",	no_argument, 0, 'v' },
 		   {"write", required_argument, 0, 'w' },
 		   {0,          0,           0, 0 }
@@ -70,7 +73,7 @@ int main(int argc, char** argv)
 		int option_index = 0;
 		for (;;)
 		{
-			int c = getopt_long(argc, argv, "abo:rvw:",
+			int c = getopt_long(argc, argv, "abio:rvw:",
 							long_options, &option_index);
 			if (c < 0)
 				break;
@@ -82,11 +85,14 @@ int main(int argc, char** argv)
 			case 'b':
 				ascii_mode = false;
 				break;
+			case 'i':
+				read_deviceid = true;
+				break;
 			case 'o':
 				offset = strtoll(optarg, NULL, 0);
 				break;
 			case 'r':
-				read_mode = true;
+				read_license = true;
 				break;
 			case 'v':
 				verbose = true;
@@ -120,34 +126,45 @@ int main(int argc, char** argv)
 				control.writeDyploLicense(key);
 			}
 		}
-		else if (read_mode)
-		{
-			dyplo::HardwareContext context;
-			dyplo::HardwareControl control(context);
-			key = control.readDyploLicense();
-			std::cout << std::hex << "0x" << key << std::endl;
-		}
 		else
 		{
-			if (optind >= argc)
-				throw std::runtime_error("Exactly one file argument is required");
 			dyplo::HardwareContext context;
 			dyplo::HardwareControl control(context);
-			if (ascii_mode)
+
+			if (read_license)
 			{
-				control.writeDyploLicenseFile(argv[optind]);
-			}
-			else
-			{
-				{
-					dyplo::File input(argv[optind], O_RDONLY);
-					if (offset)
-						input.seek(offset);
-					input.read(&key, sizeof(key));
-				}
+				key = control.readDyploLicense();
 				if (verbose)
-						std::cerr << std::hex << "Programming key " << key << std::endl;
-				control.writeDyploLicense(key);
+					std::cout << "License: ";
+				std::cout << std::hex << "0x" << key << std::endl;
+			}
+
+			if (read_deviceid)
+			{
+				key = control.readDyploDeviceID();
+				if (verbose)
+					std::cout << "Device ID: ";
+				std::cout << std::hex << "0x" << key << std::endl;
+			}
+
+			if (optind < argc)
+			{
+				if (ascii_mode)
+				{
+					control.writeDyploLicenseFile(argv[optind]);
+				}
+				else
+				{
+					{
+						dyplo::File input(argv[optind], O_RDONLY);
+						if (offset)
+							input.seek(offset);
+						input.read(&key, sizeof(key));
+					}
+					if (verbose)
+							std::cerr << std::hex << "Programming key " << key << std::endl;
+					control.writeDyploLicense(key);
+				}
 			}
 		}
 	}
