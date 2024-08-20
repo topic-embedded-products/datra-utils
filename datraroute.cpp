@@ -1,18 +1,18 @@
 /*
- * dyploroute.cpp
+ * datraroute.cpp
  *
- * Dyplo commandline utilities.
+ * Datra commandline utilities.
  *
  * (C) Copyright 2013,2014 Topic Embedded Products B.V. <Mike Looijmans> (http://www.topic.nl).
  * All rights reserved.
  *
- * This file is part of dyplo-utils.
- * dyplo-utils is free software: you can redistribute it and/or modify
+ * This file is part of datra-utils.
+ * datra-utils is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * dyplo-utils is distributed in the hope that it will be useful,
+ * datra-utils is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
@@ -25,7 +25,7 @@
  * You can contact Topic by electronic mail via info@topic.nl or via
  * paper mail at the following address: Postbus 440, 5680 AK Best, The Netherlands.
  */
-#include "dyplo/hardware.hpp"
+#include "datra/hardware.hpp"
 #include <stdlib.h>
 #include <iostream>
 #include <getopt.h>
@@ -82,9 +82,9 @@ static int read_int(char const **txt)
 	return result;
 }
 
-static dyplo::HardwareControl::Route parse_route(const char *txt)
+static datra::HardwareControl::Route parse_route(const char *txt)
 {
-	dyplo::HardwareControl::Route result;
+	datra::HardwareControl::Route result;
 	int v;
 	const char* d = txt;
 	v = read_int(&d);
@@ -113,7 +113,7 @@ int main(int argc, char** argv)
 	   {"list",		no_argument, 0, 'l' },
 	   {0,          0,           0, 0 }
 	};
-	dyplo::HardwareContext context;
+	datra::HardwareContext context;
 	bool verbose = false;
 	bool list_routes = false;
 	try
@@ -128,7 +128,7 @@ int main(int argc, char** argv)
 			switch (c)
 			{
 			case 'c':
-				dyplo::HardwareControl(context).routeDeleteAll();
+				datra::HardwareControl(context).routeDeleteAll();
 				break;
 			case 'l':
 				list_routes = true;
@@ -136,7 +136,7 @@ int main(int argc, char** argv)
 			case 'n':
 				{
 					int node = atoi(optarg);
-					dyplo::HardwareControl(context).routeDelete(node);
+					datra::HardwareControl(context).routeDelete(node);
 				}
 				break;
 			case 'v':
@@ -147,12 +147,12 @@ int main(int argc, char** argv)
 				return 1;
 			}
 		}
-		std::vector<dyplo::HardwareControl::Route> routes;
+		std::vector<datra::HardwareControl::Route> routes;
 		for (; optind < argc; ++optind)
 		{
 			if (verbose)
 				std::cerr << argv[optind] << ": " << std::flush;
-			dyplo::HardwareControl::Route route = parse_route(argv[optind]);
+			datra::HardwareControl::Route route = parse_route(argv[optind]);
 			if (verbose)
 				std::cerr << " "
 					<< (int)route.srcNode << "." << (int)route.srcFifo
@@ -163,16 +163,16 @@ int main(int argc, char** argv)
 		}
 		if (!routes.empty())
 		{
-			dyplo::HardwareControl(context).routeAdd(&routes[0], routes.size());
+			datra::HardwareControl(context).routeAdd(&routes[0], routes.size());
 		}
 		if (list_routes)
 		{
 			routes.resize(256);
-			int n_routes = dyplo::HardwareControl(context).routeGetAll(&routes[0], routes.size());
+			int n_routes = datra::HardwareControl(context).routeGetAll(&routes[0], routes.size());
 			if (n_routes < 0)
-				throw dyplo::IOException();
+				throw datra::IOException();
 			routes.resize(n_routes);
-			for (std::vector<dyplo::HardwareControl::Route>::const_iterator route = routes.begin();
+			for (std::vector<datra::HardwareControl::Route>::const_iterator route = routes.begin();
 					route != routes.end(); ++route)
 			{
 				std::cout

@@ -1,18 +1,18 @@
 /*
- * dyploaxiprobe.cpp
+ * datraaxiprobe.cpp
  *
- * Dyplo commandline utilities.
+ * Datra commandline utilities.
  *
  * (C) Copyright 2013,2014 Topic Embedded Products B.V. <Mike Looijmans> (http://www.topic.nl).
  * All rights reserved.
  *
- * This file is part of dyplo-utils.
- * dyplo-utils is free software: you can redistribute it and/or modify
+ * This file is part of datra-utils.
+ * datra-utils is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * dyplo-utils is distributed in the hope that it will be useful,
+ * datra-utils is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
@@ -25,8 +25,8 @@
  * You can contact Topic by electronic mail via info@topic.nl or via
  * paper mail at the following address: Postbus 440, 5680 AK Best, The Netherlands.
  */
-#include <dyplo/hardware.hpp>
-#include <dyplo/mmapio.hpp>
+#include <datra/hardware.hpp>
+#include <datra/mmapio.hpp>
 #include <unistd.h>
 #include <stdlib.h>
 #include <getopt.h>
@@ -74,7 +74,7 @@ int main(int argc, char** argv)
 	};
 	try
 	{
-		dyplo::HardwareContext ctrl;
+		datra::HardwareContext ctrl;
 		int option_index = 0;
 		for (;;)
 		{
@@ -114,7 +114,7 @@ int main(int argc, char** argv)
 			}
 		}
 		
-		dyplo::File file(node < 0 ? ctrl.openControl(access) : ctrl.openConfig(node, access));
+		datra::File file(node < 0 ? ctrl.openControl(access) : ctrl.openConfig(node, access));
 
 		if (access == O_RDONLY)
 		{
@@ -128,7 +128,7 @@ int main(int argc, char** argv)
 				if (verbose) printf("Addr: %#x (%d) offset=%#x+%#x - %#zx (%zu)\n",
 					addr, addr, (unsigned int)page_location, page_offset, size, size);
 				
-				dyplo::MemoryMap mapping(file, page_location, size, PROT_READ);
+				datra::MemoryMap mapping(file, page_location, size, PROT_READ);
 				volatile unsigned int* data = (unsigned int*)(((char*)mapping.memory) + page_offset);
 				
 				if (benchmark)
@@ -210,7 +210,7 @@ int main(int argc, char** argv)
 			unsigned int page_offset = addr & (PAGE_SIZE-1);
 			size_t size = addr + (values * sizeof(unsigned int)) - page_location;
 				if (verbose) printf("Addr: %#x (%d) offset=%#x+%#x - %#zx (%zu)\n", addr, addr, (unsigned int)page_location, page_offset, size, size);
-			dyplo::MemoryMap mapping(file, page_location, size, PROT_READ|PROT_WRITE);
+			datra::MemoryMap mapping(file, page_location, size, PROT_READ|PROT_WRITE);
 			volatile unsigned int* data = (unsigned int*)(((char*)mapping.memory) + page_offset);
 			unsigned int value[values];
 			const size_t blocksize = values * sizeof(unsigned int);

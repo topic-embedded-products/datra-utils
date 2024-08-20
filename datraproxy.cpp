@@ -1,18 +1,18 @@
 /*
- * dyploproxy.cpp
+ * datraproxy.cpp
  *
- * Dyplo commandline utilities.
+ * Datra commandline utilities.
  *
  * (C) Copyright 2014 Topic Embedded Products B.V. <Mike Looijmans> (http://www.topic.nl).
  * All rights reserved.
  *
- * This file is part of dyplo-utils.
- * dyplo-utils is free software: you can redistribute it and/or modify
+ * This file is part of datra-utils.
+ * datra-utils is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * dyplo-utils is distributed in the hope that it will be useful,
+ * datra-utils is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
@@ -25,8 +25,8 @@
  * You can contact Topic by electronic mail via info@topic.nl or via
  * paper mail at the following address: Postbus 440, 5680 AK Best, The Netherlands.
  */
-#include <dyplo/hardware.hpp>
-#include <dyplo/filequeue.hpp>
+#include <datra/hardware.hpp>
+#include <datra/filequeue.hpp>
 #include <stdlib.h>
 #include <iostream>
 #include <getopt.h>
@@ -36,12 +36,12 @@
 #include <poll.h>
 #include <errno.h>
 
-using dyplo::IOException;
+using datra::IOException;
 
 static void usage(const char* name)
 {
 	std::cerr << "usage: " << name << " [-s blocksize] [-v] function [function ...]\n"
-		"Runs data from stdin/stdout via Dyplo hardware. Automatically allocates\n"
+		"Runs data from stdin/stdout via Datra hardware. Automatically allocates\n"
 		"and programs partitions. Multiple functions will be linked in hardware.\n"
 		" -v    verbose mode.\n"
 		" -s .. Blocksize in bytes, default is 4k.\n"
@@ -90,7 +90,7 @@ public:
 	}
 };
 
-static int openAvailableFifo(dyplo::HardwareContext &context, unsigned char* id, int access)
+static int openAvailableFifo(datra::HardwareContext &context, unsigned char* id, int access)
 {
 	for (int index = 0; index < 32; ++index)
 	{
@@ -144,14 +144,14 @@ int main(int argc, char** argv)
 			usage(argv[0]);
 			return 1;
 		}
-		dyplo::HardwareContext context;
-		dyplo::HardwareControl control(context);
-		std::vector<dyplo::HardwareControl::Route> routes;
-		dyplo::HardwareControl::Route route;
+		datra::HardwareContext context;
+		datra::HardwareControl control(context);
+		std::vector<datra::HardwareControl::Route> routes;
+		datra::HardwareControl::Route route;
 		/* entry route */
 		route.srcNode = 0;
-		dyplo::File to_hardware(openAvailableFifo(context, &route.srcFifo, O_WRONLY));
-		dyplo::set_non_blocking(to_hardware);
+		datra::File to_hardware(openAvailableFifo(context, &route.srcFifo, O_WRONLY));
+		datra::set_non_blocking(to_hardware);
 		/* Set up hardware resources and routes */
 		for (; optind < argc; ++optind)
 		{
@@ -198,8 +198,8 @@ int main(int argc, char** argv)
 		}
 		/* Setup routes from hw to sw */
 		route.dstNode = 0;
-		dyplo::File from_hardware(openAvailableFifo(context, &route.dstFifo, O_RDONLY));
-		dyplo::set_non_blocking(from_hardware);
+		datra::File from_hardware(openAvailableFifo(context, &route.dstFifo, O_RDONLY));
+		datra::set_non_blocking(from_hardware);
 		routes.push_back(route);
 		/* Send route table to driver */
 		control.routeAdd(&routes[0], routes.size());
@@ -210,8 +210,8 @@ int main(int argc, char** argv)
 		ssize_t in_avail = 0;
 		char* out_pos;
 		ssize_t out_avail = 0;
-		dyplo::set_non_blocking(0);
-		dyplo::set_non_blocking(1);
+		datra::set_non_blocking(0);
+		datra::set_non_blocking(1);
 		struct pollfd fds[4];
 		fds[0].fd = 0;
 		fds[1].fd = to_hardware;
@@ -264,7 +264,7 @@ int main(int argc, char** argv)
 					if (bytes <= 0)
 					{
 						if (bytes == 0)
-							throw dyplo::EndOfOutputException();
+							throw datra::EndOfOutputException();
 						else if (errno != EAGAIN)
 							throw IOException("to hardware");
 					}
@@ -306,7 +306,7 @@ int main(int argc, char** argv)
 					if (bytes <= 0)
 					{
 						if (bytes == 0)
-							throw dyplo::EndOfOutputException();
+							throw datra::EndOfOutputException();
 						else if (errno != EAGAIN)
 							throw IOException("to stdout");
 					}

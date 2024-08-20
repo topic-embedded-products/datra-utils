@@ -1,18 +1,18 @@
 /*
- * dyploprogrammer.cpp
+ * datraprogrammer.cpp
  *
- * Dyplo commandline utilities.
+ * Datra commandline utilities.
  *
  * (C) Copyright 2013-2016 Topic Embedded Products B.V. (http://www.topic.nl).
  * All rights reserved.
  *
- * This file is part of dyplo-utils.
- * dyplo-utils is free software: you can redistribute it and/or modify
+ * This file is part of datra-utils.
+ * datra-utils is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * dyplo-utils is distributed in the hope that it will be useful,
+ * datra-utils is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
@@ -25,7 +25,7 @@
  * You can contact Topic by electronic mail via info@topic.nl or via
  * paper mail at the following address: Postbus 440, 5680 AK Best, The Netherlands.
  */
-#include "dyplo/hardware.hpp"
+#include "datra/hardware.hpp"
 #include <stdlib.h>
 #include <unistd.h>
 #include <iostream>
@@ -39,7 +39,7 @@ static void usage(const char* name)
         " function  Function to be programmed\n"
         " N         Node index(es) to program the function to\n"
         "\n"
-        "Programs functions into Dyplo's reconfigurable partitions.\n"
+        "Programs functions into Datra's reconfigurable partitions.\n"
         "For example, to put an adder into nodes 1 and 2, and a fir into 3:\n"
         "  " << name << " adder 1 2 fir 3\n"
         "This requires bitstreams for these functions to be present.\n";
@@ -55,8 +55,8 @@ int main(int argc, char** argv)
     
     try
     {
-        dyplo::HardwareContext ctx;
-        dyplo::HardwareControl control(ctx);
+        datra::HardwareContext ctx;
+        datra::HardwareControl control(ctx);
         
         int option_index = 0;
         for (;;)
@@ -111,8 +111,8 @@ int main(int argc, char** argv)
                     std::cerr << "Programming '" << function_name << "' into " << node_index << " using " << filename << std::flush;
                 }
                 
-                dyplo::File input_file(filename.c_str(), O_RDONLY);
-                dyplo::HardwareConfig cfg(ctx, node_index);
+                datra::File input_file(filename.c_str(), O_RDONLY);
+                datra::HardwareConfig cfg(ctx, node_index);
 
                 cfg.disableNode();
                 unsigned int r = control.program(input_file);

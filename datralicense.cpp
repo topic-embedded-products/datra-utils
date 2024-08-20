@@ -1,18 +1,18 @@
 /*
- * dyplolicense.cpp
+ * datralicense.cpp
  *
- * Dyplo commandline utilities.
+ * Datra commandline utilities.
  *
  * (C) Copyright 2014 Topic Embedded Products B.V. <Mike Looijmans> (http://www.topic.nl).
  * All rights reserved.
  *
- * This file is part of dyplo-utils.
- * dyplo-utils is free software: you can redistribute it and/or modify
+ * This file is part of datra-utils.
+ * datra-utils is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * dyplo-utils is distributed in the hope that it will be useful,
+ * datra-utils is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
@@ -25,7 +25,7 @@
  * You can contact Topic by electronic mail via info@topic.nl or via
  * paper mail at the following address: Postbus 440, 5680 AK Best, The Netherlands.
  */
-#include "dyplo/hardware.hpp"
+#include "datra/hardware.hpp"
 #include <stdlib.h>
 #include <unistd.h>
 #include <iostream>
@@ -43,7 +43,7 @@ static void usage(const char* name)
 		" -v    verbose mode\n"
 		" -w    write key to file instead of reading it\n"
 		" file  file (or device) to read key from or to write it to\n"
-		"Activates a Dyplo license by writing it to the hardware. Must be called\n"
+		"Activates a Datra license by writing it to the hardware. Must be called\n"
 		"early at boot. File can be a regular file or e.g. an EEPROM device.\n"
 		"When -r is specified, it reads back the key from hardware instead.\n";
 }
@@ -112,7 +112,7 @@ int main(int argc, char** argv)
 			{
 				if (verbose)
 					std::cerr << std::hex << "Writing key " << key << " to " << argv[optind] << " at " << std::dec << offset << std::endl;
-				dyplo::File output(::open(argv[optind], O_WRONLY|O_CREAT, 0644));
+				datra::File output(::open(argv[optind], O_WRONLY|O_CREAT, 0644));
 				if (offset)
 					output.seek(offset);
 				output.write(&key, sizeof(key));
@@ -121,19 +121,19 @@ int main(int argc, char** argv)
 			{
 				if (verbose)
 					std::cerr << std::hex << "Programming key " << key << std::endl;
-				dyplo::HardwareContext context;
-				dyplo::HardwareControl control(context);
-				control.writeDyploLicense(key);
+				datra::HardwareContext context;
+				datra::HardwareControl control(context);
+				control.writeDatraLicense(key);
 			}
 		}
 		else
 		{
-			dyplo::HardwareContext context;
-			dyplo::HardwareControl control(context);
+			datra::HardwareContext context;
+			datra::HardwareControl control(context);
 
 			if (read_license)
 			{
-				key = control.readDyploLicense();
+				key = control.readDatraLicense();
 				if (verbose)
 					std::cout << "License: ";
 				std::cout << std::hex << "0x" << key << std::endl;
@@ -141,7 +141,7 @@ int main(int argc, char** argv)
 
 			if (read_deviceid)
 			{
-				key = control.readDyploDeviceID();
+				key = control.readDatraDeviceID();
 				if (verbose)
 					std::cout << "Device ID: ";
 				std::cout << std::hex << "0x" << key << std::endl;
@@ -151,19 +151,19 @@ int main(int argc, char** argv)
 			{
 				if (ascii_mode)
 				{
-					control.writeDyploLicenseFile(argv[optind]);
+					control.writeDatraLicenseFile(argv[optind]);
 				}
 				else
 				{
 					{
-						dyplo::File input(argv[optind], O_RDONLY);
+						datra::File input(argv[optind], O_RDONLY);
 						if (offset)
 							input.seek(offset);
 						input.read(&key, sizeof(key));
 					}
 					if (verbose)
 							std::cerr << std::hex << "Programming key " << key << std::endl;
-					control.writeDyploLicense(key);
+					control.writeDatraLicense(key);
 				}
 			}
 		}
